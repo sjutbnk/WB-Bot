@@ -3,6 +3,9 @@ FROM python:3.11-slim
 # Установка рабочей директории
 WORKDIR /app
 
+# Переменная окружения для детекции запуска внутри Docker
+ENV IS_DOCKER=true
+
 # Установка системных библиотек, необходимых для компиляции некоторых пакетов при необходимости
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \

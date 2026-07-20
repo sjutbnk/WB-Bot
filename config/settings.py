@@ -46,6 +46,11 @@ class Settings(BaseSettings):
     @computed_field
     @property
     def database_url(self) -> str:
-        return f"postgresql+asyncpg://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_name}"
+        host = self.db_host
+        # Если бот запущен внутри Docker-контейнера, а хост указан как localhost/127.0.0.1,
+        # автоматически перенаправляем на имя сервиса БД "db", описанного в docker-compose.yml
+        if (os.path.exists("/.dockerenv") or os.environ.get("IS_DOCKER") == "true") and host in ("localhost", "127.0.0.1"):
+            host = "db"
+        return f"postgresql+asyncpg://{self.db_user}:{self.db_password}@{host}:{self.db_port}/{self.db_name}"
 
 settings = Settings()
