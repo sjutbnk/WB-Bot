@@ -8,6 +8,7 @@ from database.base import init_db
 from database.requests import init_default_records
 from handlers import shared
 from handlers.supply_handlers import menu
+from schedulers.report_scheduler import start_supply_scheduler
 
 # Настройка логирования
 logging.basicConfig(
@@ -42,7 +43,10 @@ async def main():
     dp.include_router(shared.router)
     dp.include_router(menu.router)
 
-    # Шаг 4: Запуск поллинга
+    # Шаг 4: Запуск планировщика поставок
+    await start_supply_scheduler(bot)
+
+    # Шаг 5: Запуск поллинга
     try:
         await bot.delete_webhook(drop_pending_updates=True)
         await dp.start_polling(bot)

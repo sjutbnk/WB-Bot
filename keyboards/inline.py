@@ -51,12 +51,12 @@ def get_days_markup() -> InlineKeyboardMarkup:
     builder.adjust(4)
     return builder.as_markup()
 
-def get_hours_markup() -> InlineKeyboardMarkup:
+def get_hours_markup(prefix: str = "set_report_hour_") -> InlineKeyboardMarkup:
     """Клавиатура выбора часа рассылки отчетов."""
     builder = InlineKeyboardBuilder()
     # Выбираем популярные утренние и дневные часы
     hours = [7, 8, 9, 10, 11, 12, 13, 14, 15, 18, 20]
     for h in hours:
-        builder.add(InlineKeyboardButton(text=f"{h:02d}:00", callback_data=f"set_report_hour_{h}"))
+        builder.add(InlineKeyboardButton(text=f"{h:02d}:00", callback_data=f"{prefix}{h}"))
     builder.adjust(4)
     return builder.as_markup()

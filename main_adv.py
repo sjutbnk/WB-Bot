@@ -8,6 +8,7 @@ from database.base import init_db
 from database.requests import init_default_records
 from handlers import shared
 from handlers.adv_handlers import menu, seo_cmd, competitors
+from schedulers.report_scheduler import start_adv_scheduler
 
 # Настройка логирования
 logging.basicConfig(
@@ -45,7 +46,10 @@ async def main():
     dp.include_router(seo_cmd.router)
     dp.include_router(competitors.router)
 
-    # Шаг 4: Запуск поллинга
+    # Шаг 4: Запуск планировщика ежедневных отчетов
+    await start_adv_scheduler(bot)
+
+    # Шаг 5: Запуск поллинга
     try:
         await bot.delete_webhook(drop_pending_updates=True)
         await dp.start_polling(bot)

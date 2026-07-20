@@ -1,15 +1,16 @@
 import logging
-from datetime import datetime
+from datetime import datetime, time
 from aiogram import Router, F
 from aiogram.filters import CommandStart
-from aiogram.types import Message
-from database.requests import get_wb_creds, get_bot_settings
+from aiogram.types import Message, CallbackQuery
+from database.requests import get_wb_creds, get_bot_settings, update_bot_settings
 from keyboards.reply import get_adv_main_menu
-from keyboards.inline import get_settings_markup
+from keyboards.inline import get_settings_markup, get_hours_markup
 from services.wb_client import WBClient
 from services.adv_analyzer import AdvAnalyzer
 from utils.filters import IsAdminFilter
 from utils.formatters import get_header, get_divider, format_currency, format_percent, format_number
+from schedulers.report_scheduler import reschedule_adv_report
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -119,3 +120,41 @@ async def handle_settings(message: Message):
         f"⚙️ Используйте кнопки ниже для обновления токенов или изменения времени."
     )
     await message.answer(text, reply_markup=get_settings_markup())
+
+@router.callback_query(F.data == "set_adv_report_time")
+async def select_adv_time(callback: CallbackQuery):
+    """Показывает клавиатуру выбора часа отправки отчета рекламы."""
+    await callback.message.edit_text(
+        "⏰ **Выберите час отправки ежедневного отчета по рекламе (МСК):**",
+        reply_markup=get_hours_markup(prefix="set_adv_hour_")
+    )
+    await callback.answer()
+
+@router.callback_query(F.data.startswith("set_adv_hour_"))
+async def process_adv_time(callback: CallbackQuery):
+    """Обрабатывает выбор часа и обновляет задачу в планировщике."""
+    hour = int(callback.data.replace("set_adv_hour_", ""))
+    await update_bot_settings(adv_report_time=time(hour, 0))
+    
+    # Перепланируем задачу в APScheduler
+    await reschedule_adv_report(callback.bot)
+    
+    await callback.answer("Время ежедневного отчета успешно изменено!", show_alert=True)
+    
+    # Возвращаемся в меню настроек
+    creds = await get_wb_creds()
+    settings_rec = await get_bot_settings()
+    api_status = "✅ Подключен" if creds.api_token and not creds.api_token.startswith("your_") else "❌ Не настроен"
+    adv_status = "✅ Подключен" if creds.adv_token and not creds.adv_token.startswith("your_") else "❌ Не настроен"
+    
+    text = (
+        f"{get_header('Настройки Системы')}"
+        f"🔑 **Статус API ключей Wildberries:**\n"
+        f" ▫️ Стандартный (Статистика/Контент): {api_status}\n"
+        f" ▫️ Рекламный (Продвижение): {adv_status}\n\n"
+        f"⏰ **Ежедневный отчет по рекламе:**\n"
+        f" ▫️ Статус: {'🔔 Включен' if settings_rec.adv_report_enabled else '🔕 Выключен'}\n"
+        f" ▫️ Время отправки: **{settings_rec.adv_report_time.strftime('%H:%M')} (МСК)**\n\n"
+        f"⚙️ Используйте кнопки ниже для обновления токенов или изменения времени."
+    )
+    await callback.message.edit_text(text, reply_markup=get_settings_markup())

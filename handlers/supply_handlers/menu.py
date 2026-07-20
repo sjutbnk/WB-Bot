@@ -11,6 +11,7 @@ from services.supply_analyzer import SupplyAnalyzer
 from services.excel_generator import ExcelGenerator
 from utils.filters import IsAdminFilter
 from utils.formatters import get_header, get_divider
+from schedulers.report_scheduler import reschedule_supply_report
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -126,6 +127,9 @@ async def toggle_supply_report(callback: CallbackQuery):
     new_state = not settings_rec.supply_report_enabled
     await update_bot_settings(supply_report_enabled=new_state)
     
+    # Перепланируем рассылку в APScheduler
+    await reschedule_supply_report(callback.bot)
+    
     # Обновляем сообщение меню
     await callback.answer("Статус рассылки изменен", show_alert=True)
     
@@ -175,6 +179,9 @@ async def process_day_schedule(callback: CallbackQuery):
     day = int(callback.data.replace("set_supply_day_", ""))
     await update_bot_settings(supply_report_day=day)
     
+    # Перепланируем рассылку в APScheduler
+    await reschedule_supply_report(callback.bot)
+    
     await callback.answer("День недели успешно изменен!", show_alert=True)
     # Возвращаемся в меню настроек
     # Создаем фиктивное сообщение, чтобы вызвать хендлер
@@ -202,6 +209,9 @@ async def process_time_schedule(callback: CallbackQuery):
     from datetime import time
     hour = int(callback.data.replace("set_report_hour_", ""))
     await update_bot_settings(supply_report_time=time(hour, 0))
+    
+    # Перепланируем рассылку в APScheduler
+    await reschedule_supply_report(callback.bot)
     
     await callback.answer("Время отправки изменено!", show_alert=True)
     await handle_schedule_menu(callback.message)
