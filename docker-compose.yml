@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  # Контейнер базы данных PostgreSQL
+  db:
+    image: postgres:15-alpine
+    container_name: maria_auto_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres_password}
+      POSTGRES_DB: ${DB_NAME:-maria_auto_db}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Контейнер Бота по рекламе и аналитике
+  bot_adv:
+    build: .
+    container_name: maria_bot_adv
+    restart: always
+    command: python main_adv.py
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+
+  # Контейнер Бота по планированию поставок
+  bot_supply:
+    build: .
+    container_name: maria_bot_supply
+    restart: always
+    command: python main_supply.py
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+
+volumes:
+  pgdata:
+    driver: local
