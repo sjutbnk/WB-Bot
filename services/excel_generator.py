@@ -116,8 +116,8 @@ class ExcelGenerator:
 
     @staticmethod
     def generate_campaign_report(data: List[Dict[str, Any]], filepath: str) -> str:
-        """Создает детальный Excel-отчет по рекламным кампаниям в стиле предоставленного шаблона."""
-        # 1. Считаем итоги для первой строчки "Итого"
+        """Создает транспонированный Excel-отчет по рекламным кампаниям (показатели слева, артикулы сверху)."""
+        # 1. Считаем итоги для первой колонки "Итого"
         total_budget = sum(item.get("Бюджет", 0) for item in data if item.get("Зоны показа") == "Весь период")
         total_views = sum(item.get("Показы", 0) for item in data if item.get("Зоны показа") == "Весь период")
         total_clicks = sum(item.get("Клики", 0) for item in data if item.get("Зоны показа") == "Весь период")
@@ -145,10 +145,8 @@ class ExcelGenerator:
         avg_spp_discount = (avg_price_before - avg_price_after) / avg_price_before * 100 if avg_price_before else 0
         avg_margin = (total_profit / total_orders_sum * 100) if total_orders_sum else (total_profit / avg_price_before * 100 if avg_price_before else 0)
 
-        # Создаем строчку Итого
+        # Словарь Итого
         summary_row = {
-            "Название": "Итого",
-            "Зоны показа": "Весь период",
             "Бюджет": round(total_budget, 2),
             "Показы": total_views,
             "Клики": total_clicks,
@@ -172,82 +170,153 @@ class ExcelGenerator:
             "Прогноз. приб. без опер. расх.": round(total_profit, 2)
         }
 
-        # Объединяем итоговую строку со списком кампаний
-        all_rows = [summary_row] + data
-        df = pd.DataFrame(all_rows)
+        # Метрики по строкам (ключ, название, тип_форматирования)
+        metrics_keys = [
+            ("Бюджет", "Бюджет", "float"),
+            ("Показы", "Показы", "int"),
+            ("Клики", "Клики", "int"),
+            ("CTR", "CTR", "float"),
+            ("CPC", "CPC", "float"),
+            ("CPM", "CPM", "float"),
+            ("Корзина", "Корзина", "int"),
+            ("Добавления в корзину", "Добавления в корзину", "float"),
+            ("Заказы", "Заказы", "int"),
+            ("Заказы сумма", "Заказы сумма", "float"),
+            ("Добавление в заказ", "Добавление в заказ", "float"),
+            ("Ассоц. заказы, шт.", "Ассоц. заказы, шт.", "int"),
+            ("Ассоц. заказы, руб", "Ассоц. заказы, руб", "float"),
+            ("CR", "CR", "float"),
+            ("CPO", "CPO", "float"),
+            ("ДРРз", "ДРРз", "float"),
+            ("Цена до СПП", "Цена до СПП", "float"),
+            ("Цена после СПП", "Цена после СПП", "float"),
+            ("Скидка МП", "Скидка МП", "float"),
+            ("Прогноз. марж", "Прогноз. марж", "float"),
+            ("Прогноз. приб. без опер. расх.", "Прогноз. приб. без опер. расх.", "float")
+        ]
 
-        with pd.ExcelWriter(filepath, engine="openpyxl") as writer:
-            df.to_excel(writer, index=False, sheet_name="Отчет по кампаниям")
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Отчет по кампаниям"
+
+        # Заливки и шрифты
+        header_fill = PatternFill(start_color="D9D9D9", end_color="D9D9D9", fill_type="solid") # Серый
+        side_fill = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid") # Светло-серый
+        normal_fill = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
+        
+        header_font = Font(name="Calibri", size=10, bold=True)
+        bold_font = Font(name="Calibri", size=10, bold=True)
+        data_font = Font(name="Calibri", size=10)
+        
+        center_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        left_align = Alignment(horizontal="left", vertical="center")
+        right_align = Alignment(horizontal="right", vertical="center")
+        
+        thin_border_side = Side(border_style="thin", color="D9D9D9")
+        border = Border(left=thin_border_side, right=thin_border_side, top=thin_border_side, bottom=thin_border_side)
+
+        # Пишем заголовки столбцов А и Б
+        ws.cell(row=1, column=1, value="Показатель").alignment = left_align
+        ws.cell(row=2, column=1, value="Зоны показа").alignment = left_align
+        ws.cell(row=1, column=2, value="Итого").alignment = center_align
+        ws.cell(row=2, column=2, value="Весь период").alignment = center_align
+
+        ws.cell(row=1, column=1).fill = header_fill
+        ws.cell(row=2, column=1).fill = header_fill
+        ws.cell(row=1, column=2).fill = side_fill
+        ws.cell(row=2, column=2).fill = side_fill
+
+        ws.cell(row=1, column=1).font = header_font
+        ws.cell(row=2, column=1).font = header_font
+        ws.cell(row=1, column=2).font = header_font
+        ws.cell(row=2, column=2).font = header_font
+
+        # Заполняем показатели по строкам (Column A и Column B)
+        for row_offset, (key, label, f_type) in enumerate(metrics_keys, 3):
+            # Показатели (A)
+            cell_a = ws.cell(row=row_offset, column=1, value=label)
+            cell_a.alignment = left_align
+            cell_a.fill = header_fill
+            cell_a.font = bold_font
+            cell_a.border = border
             
-            workbook = writer.book
-            worksheet = writer.sheets["Отчет по кампаниям"]
+            # Итого (B)
+            cell_b = ws.cell(row=row_offset, column=2, value=summary_row.get(key))
+            cell_b.alignment = right_align
+            cell_b.fill = side_fill
+            cell_b.font = bold_font
+            cell_b.border = border
+            if cell_b.value is not None:
+                cell_b.number_format = "#,##0" if f_type == "int" else "0.00"
+
+        # Заполняем данные по кампаниям в столбцы C, D, E...
+        col_idx = 3
+        current_campaign = ""
+        
+        for item in data:
+            name = item.get("Название")
+            zone = item.get("Зоны показа")
             
-            # --- Стилизация в стиле шаблона ---
-            # Светло-серый цвет для шапки
-            header_fill = PatternFill(start_color="EAEAEA", end_color="EAEAEA", fill_type="solid")
-            # Светло-серый с голубым отливом для строки "Итого"
-            total_fill = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
-            normal_fill = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
+            if name:
+                current_campaign = name
+                
+            # Заголовки столбцов для РК
+            c_cell_1 = ws.cell(row=1, column=col_idx, value=current_campaign)
+            c_cell_1.alignment = center_align
+            c_cell_1.font = header_font
+            c_cell_1.fill = header_fill
+            c_cell_1.border = border
             
-            header_font = Font(name="Calibri", size=10, bold=True, color="000000")
-            total_font = Font(name="Calibri", size=10, bold=True, color="000000")
-            data_font = Font(name="Calibri", size=10)
+            c_cell_2 = ws.cell(row=2, column=col_idx, value=zone)
+            c_cell_2.alignment = center_align
+            c_cell_2.font = header_font
+            c_cell_2.fill = header_fill
+            c_cell_2.border = border
             
-            center_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
-            left_align = Alignment(horizontal="left", vertical="center")
-            right_align = Alignment(horizontal="right", vertical="center")
-            
-            thin_border_side = Side(border_style="thin", color="D9D9D9")
-            border = Border(left=thin_border_side, right=thin_border_side, top=thin_border_side, bottom=thin_border_side)
-            
-            # Шапка
-            worksheet.row_dimensions[1].height = 28
-            for col_idx in range(1, len(df.columns) + 1):
-                cell = worksheet.cell(row=1, column=col_idx)
-                cell.fill = header_fill
-                cell.font = header_font
-                cell.alignment = center_align
+            # Заполняем значения строк по текущему столбцу
+            for row_offset, (key, label, f_type) in enumerate(metrics_keys, 3):
+                val = item.get(key)
+                cell = ws.cell(row=row_offset, column=col_idx, value=val)
+                cell.alignment = right_align
+                cell.font = data_font
                 cell.border = border
-            
-            # Строки
-            for row_idx in range(2, len(df) + 2):
-                is_total = (row_idx == 2)
-                row_fill = total_fill if is_total else normal_fill
-                worksheet.row_dimensions[row_idx].height = 20
+                cell.fill = normal_fill
                 
-                for col_idx in range(1, len(df.columns) + 1):
-                    cell = worksheet.cell(row=row_idx, column=col_idx)
-                    cell.fill = row_fill
-                    cell.border = border
-                    cell.font = total_font if is_total else data_font
+                if val is not None:
+                    cell.number_format = "#,##0" if f_type == "int" else "0.00"
                     
-                    # Выравнивание
-                    if col_idx in [1, 2]: # Название, Зоны показа
-                        cell.alignment = left_align
-                    else:
-                        cell.alignment = right_align
-                    
-                    # Форматирование чисел
-                    val = cell.value
-                    if val is not None and not isinstance(val, str):
-                        # Целые числа
-                        if col_idx in [4, 5, 9, 11, 14]:
-                            cell.number_format = "#,##0"
-                        # Вещественные (валюты и проценты)
-                        else:
-                            cell.number_format = "0.00"
+            col_idx += 1
 
-            worksheet.views.sheetView[0].showGridLines = True
+        # Объединяем ячейки с названием РК в Row 1 для каждого столбца РК (по 3 на каждую)
+        num_campaigns = len(data) // 3
+        for c_idx in range(num_campaigns):
+            start_col = 3 + c_idx * 3
+            end_col = start_col + 2
+            ws.merge_cells(start_row=1, start_column=start_col, end_row=1, end_column=end_col)
             
-            # Ширина колонок
-            for col in worksheet.columns:
-                max_len = 0
-                col_letter = get_column_letter(col[0].column)
-                for cell in col:
-                    if cell.value:
-                        lines = str(cell.value).split('\n')
-                        for line in lines:
-                            max_len = max(max_len, len(line))
-                worksheet.column_dimensions[col_letter].width = max(max_len + 3, 11)
-                
+            # Восстанавливаем границы после объединения
+            for c in range(start_col, end_col + 1):
+                ws.cell(row=1, column=c).border = border
+
+        # Сетка линий
+        ws.views.sheetView[0].showGridLines = True
+        
+        # Высоты строк
+        ws.row_dimensions[1].height = 36
+        ws.row_dimensions[2].height = 24
+        for r in range(3, len(metrics_keys) + 3):
+            ws.row_dimensions[r].height = 20
+
+        # Автоматическая ширина колонок с ограничением по ширине названия
+        for col in ws.columns:
+            max_len = 0
+            col_letter = get_column_letter(col[0].column)
+            for cell in col:
+                if cell.value:
+                    lines = str(cell.value).split('\n')
+                    for line in lines:
+                        max_len = max(max_len, len(line))
+            ws.column_dimensions[col_letter].width = min(max(max_len + 3, 11), 32)
+
+        wb.save(filepath)
         return filepath
