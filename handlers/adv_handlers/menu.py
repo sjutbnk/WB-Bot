@@ -102,22 +102,15 @@ async def handle_advertising(message: Message):
 
 @router.message(F.text == "⚙️ Настройки")
 async def handle_settings(message: Message):
-    """Выводит настройки токенов и времени отчетов."""
-    creds = await get_wb_creds()
+    """Выводит настройки времени отчетов."""
     settings_rec = await get_bot_settings()
     
-    api_status = "✅ Подключен" if creds.api_token and not creds.api_token.startswith("your_") else "❌ Не настроен"
-    adv_status = "✅ Подключен" if creds.adv_token and not creds.adv_token.startswith("your_") else "❌ Не настроен"
-    
     text = (
-        f"{get_header('Настройки Системы')}"
-        f"🔑 **Статус API ключей Wildberries:**\n"
-        f" ▫️ Стандартный (Статистика/Контент): {api_status}\n"
-        f" ▫️ Рекламный (Продвижение): {adv_status}\n\n"
+        f"{get_header('Настройки Отчетов')}"
         f"⏰ **Ежедневный отчет по рекламе:**\n"
         f" ▫️ Статус: {'🔔 Включен' if settings_rec.adv_report_enabled else '🔕 Выключен'}\n"
         f" ▫️ Время отправки: **{settings_rec.adv_report_time.strftime('%H:%M')} (МСК)**\n\n"
-        f"⚙️ Используйте кнопки ниже для обновления токенов или изменения времени."
+        f"Используйте кнопку ниже для изменения времени рассылки:"
     )
     await message.answer(text, reply_markup=get_settings_markup())
 
@@ -142,19 +135,13 @@ async def process_adv_time(callback: CallbackQuery):
     await callback.answer("Время ежедневного отчета успешно изменено!", show_alert=True)
     
     # Возвращаемся в меню настроек
-    creds = await get_wb_creds()
     settings_rec = await get_bot_settings()
-    api_status = "✅ Подключен" if creds.api_token and not creds.api_token.startswith("your_") else "❌ Не настроен"
-    adv_status = "✅ Подключен" if creds.adv_token and not creds.adv_token.startswith("your_") else "❌ Не настроен"
     
     text = (
-        f"{get_header('Настройки Системы')}"
-        f"🔑 **Статус API ключей Wildberries:**\n"
-        f" ▫️ Стандартный (Статистика/Контент): {api_status}\n"
-        f" ▫️ Рекламный (Продвижение): {adv_status}\n\n"
+        f"{get_header('Настройки Отчетов')}"
         f"⏰ **Ежедневный отчет по рекламе:**\n"
         f" ▫️ Статус: {'🔔 Включен' if settings_rec.adv_report_enabled else '🔕 Выключен'}\n"
         f" ▫️ Время отправки: **{settings_rec.adv_report_time.strftime('%H:%M')} (МСК)**\n\n"
-        f"⚙️ Используйте кнопки ниже для обновления токенов или изменения времени."
+        f"Используйте кнопку ниже для изменения времени рассылки:"
     )
     await callback.message.edit_text(text, reply_markup=get_settings_markup())

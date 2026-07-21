@@ -2,18 +2,11 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 def get_settings_markup() -> InlineKeyboardMarkup:
-    """Клавиатура управления настройками и токенами."""
+    """Клавиатура управления настройками отчетов."""
     builder = InlineKeyboardBuilder()
     builder.row(
-        InlineKeyboardButton(text="🔑 Обновить Стандартный API", callback_data="set_token_api")
+        InlineKeyboardButton(text="⏰ Изменить время ежедневного отчета", callback_data="set_adv_report_time")
     )
-    builder.row(
-        InlineKeyboardButton(text="🔑 Обновить Рекламный API", callback_data="set_token_adv")
-    )
-    builder.row(
-        InlineKeyboardButton(text="⏰ Время отчета рекламы", callback_data="set_adv_report_time")
-    )
-    
     return builder.as_markup()
 
 def get_competitor_menu_markup() -> InlineKeyboardMarkup:

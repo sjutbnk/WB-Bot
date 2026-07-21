@@ -60,27 +60,12 @@ async def get_active_users() -> List[User]:
 # --- Токены WB ---
 
 async def get_wb_creds() -> WBCredentials:
-    async with async_session() as session:
-        result = await session.execute(select(WBCredentials).where(WBCredentials.id == 1))
-        creds = result.scalar_one_or_none()
-        if not creds:
-            # Подстраховка
-            creds = WBCredentials(id=1, api_token=settings.wb_api_token, adv_token=settings.wb_adv_token)
-            session.add(creds)
-            await session.commit()
-            await session.refresh(creds)
-        return creds
+    """Возвращает токены Wildberries строго из настроек окружения (.env)."""
+    return WBCredentials(id=1, api_token=settings.wb_api_token, adv_token=settings.wb_adv_token)
 
 async def update_wb_creds(api_token: Optional[str] = None, adv_token: Optional[str] = None):
-    async with async_session() as session:
-        result = await session.execute(select(WBCredentials).where(WBCredentials.id == 1))
-        creds = result.scalar_one_or_none()
-        if creds:
-            if api_token is not None:
-                creds.api_token = api_token
-            if adv_token is not None:
-                creds.adv_token = adv_token
-            await session.commit()
+    """Функция сохранена для совместимости."""
+    pass
 
 # --- Настройки бота ---
 

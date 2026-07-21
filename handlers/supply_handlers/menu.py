@@ -216,18 +216,4 @@ async def process_time_schedule(callback: CallbackQuery):
     await callback.answer("Время отправки изменено!", show_alert=True)
     await handle_schedule_menu(callback.message)
 
-# --- Управление ключами из бота по поставкам ---
 
-@router.message(F.text == "⚙️ API ключи")
-async def handle_api_keys_menu(message: Message):
-    """Выводит настройки API ключей в боте по поставкам (для удобства)."""
-    creds = await get_wb_creds()
-    api_status = "✅ Подключен" if creds.api_token and not creds.api_token.startswith("your_") else "❌ Не настроен"
-    
-    text = (
-        f"{get_header('Управление Токенами')}"
-        f"🔑 **Статус API ключей Wildberries:**\n"
-        f" ▫️ Стандартный (Статистика/Контент): {api_status}\n\n"
-        f"Вы можете обновить ключи в любой момент:"
-    )
-    await message.answer(text, reply_markup=get_settings_markup())

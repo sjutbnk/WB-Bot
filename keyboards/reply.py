@@ -28,8 +28,7 @@ def get_supply_main_menu() -> ReplyKeyboardMarkup:
         KeyboardButton(text="📦 Расчет поставок")
     )
     builder.row(
-        KeyboardButton(text="📅 Настройка рассылки"),
-        KeyboardButton(text="⚙️ API ключи")
+        KeyboardButton(text="📅 Настройка рассылки")
     )
     
     markup = builder.as_markup()
