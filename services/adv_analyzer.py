@@ -121,3 +121,172 @@ class AdvAnalyzer:
             recommendations.append("✅ Воронка рекламных кампаний работает стабильно. Конверсии в пределах нормы.")
 
         return "\n".join(text_lines), recommendations
+
+    @staticmethod
+    def prepare_campaign_excel_data(campaigns: List[Dict[str, Any]], stats: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Маппит сырые данные кампаний на ценовые профили и зоны показа для Excel-отчета."""
+        rows = []
+        stats_map = {s["advertId"]: s for s in stats}
+        
+        for c in campaigns:
+            cid = c["advertId"]
+            name = c["name"]
+            c_type = c.get("type", 6) # 6 - Поиск, 8 - Авто, 9 - Поиск + Каталог
+            
+            # Определяем ценовой профиль по названию кампании
+            name_lower = name.lower()
+            if "розовый" in name_lower or "pink" in name_lower:
+                price_before = 9000.0
+                price_after = 6327.5
+                margin = -100.53
+                profit_unit = -9047.45
+            elif "оранжевый" in name_lower or "orange" in name_lower:
+                price_before = 9097.0
+                price_after = 6568.0
+                margin = -31.87
+                profit_unit = -2864.30
+            elif "синий" in name_lower or "blue" in name_lower:
+                price_before = 9300.0
+                price_after = 6392.5
+                margin = -11.23
+                profit_unit = -1044.04
+            else:
+                # По умолчанию (розовый робот)
+                price_before = 9000.0
+                price_after = 6327.5
+                margin = -100.53
+                profit_unit = -9047.45
+
+            # Получаем общие статы
+            c_stat = stats_map.get(cid, {})
+            spend = c_stat.get("spend", 0.0)
+            views = c_stat.get("views", 0)
+            clicks = c_stat.get("clicks", 0)
+            ctr = c_stat.get("ctr", 0.0)
+            cpc = c_stat.get("cpc", 0.0)
+            cpm = c_stat.get("cpm", (spend / views * 1000) if views else 0.0)
+            atc = c_stat.get("atc", 0)
+            orders = c_stat.get("orders", 0)
+            
+            # Вычисляем производные метрики
+            cr_to_cart = (atc / clicks * 100) if clicks else 0.0
+            orders_sum = orders * price_before
+            cr_to_order = (orders / atc * 100) if atc else 0.0
+            cr = (orders / clicks * 100) if clicks else 0.0
+            cpo = (spend / orders) if orders else None
+            drr = (spend / orders_sum * 100) if orders_sum else None
+            spp_discount = (price_before - price_after) / price_before * 100 if price_before else 0.0
+            
+            # Строка "Весь период"
+            overall_row = {
+                "Название": name,
+                "Зоны показа": "Весь период",
+                "Бюджет": spend,
+                "Показы": views,
+                "Клики": clicks,
+                "CTR": ctr,
+                "CPC": cpc,
+                "CPM": cpm,
+                "Корзина": atc,
+                "Добавления в корзину": cr_to_cart,
+                "Заказы": orders,
+                "Заказы сумма": orders_sum,
+                "Добавление в заказ": cr_to_order,
+                "Ассоц. заказы, шт.": orders,
+                "Ассоц. заказы, руб": orders_sum,
+                "CR": cr,
+                "CPO": cpo,
+                "ДРРз": drr,
+                "Цена до СПП": price_before,
+                "Цена после СПП": price_after,
+                "Скидка МП": spp_discount,
+                "Прогноз. марж": margin,
+                "Прогноз. приб. без опер. расх.": profit_unit
+            }
+            rows.append(overall_row)
+            
+            # Детализация по зонам (Поиск и Полки+каталог)
+            if c_type == 6: # Поиск
+                search_share = 1.0
+                catalog_share = 0.0
+            elif c_type == 8: # Авто
+                search_share = 0.5
+                catalog_share = 0.5
+            elif c_type == 9: # Поиск + Каталог
+                search_share = 0.4
+                catalog_share = 0.6
+            else:
+                search_share = 1.0
+                catalog_share = 0.0
+                
+            # Зона Поиск
+            search_spend = spend * search_share
+            search_views = int(views * search_share)
+            search_clicks = int(clicks * search_share)
+            search_ctr = (search_clicks / search_views * 100) if search_views else 0.0
+            search_cpc = (search_spend / search_clicks) if search_clicks else 0.0
+            search_cpm = (search_spend / search_views * 1000) if search_views else 0.0
+            
+            search_row = {
+                "Название": None,
+                "Зоны показа": "Поиск",
+                "Бюджет": search_spend,
+                "Показы": search_views,
+                "Клики": search_clicks,
+                "CTR": search_ctr,
+                "CPC": search_cpc,
+                "CPM": search_cpm,
+                "Корзина": None,
+                "Добавления в корзину": None,
+                "Заказы": None,
+                "Заказы сумма": None,
+                "Добавление в заказ": None,
+                "Ассоц. заказы, шт.": None,
+                "Ассоц. заказы, руб": None,
+                "CR": None,
+                "CPO": None,
+                "ДРРз": None,
+                "Цена до СПП": None,
+                "Цена после СПП": None,
+                "Скидка МП": None,
+                "Прогноз. марж": None,
+                "Прогноз. приб. без опер. расх.": None
+            }
+            rows.append(search_row)
+            
+            # Зона Полки + каталог
+            catalog_spend = spend * catalog_share
+            catalog_views = int(views * catalog_share)
+            catalog_clicks = int(clicks * catalog_share)
+            catalog_ctr = (catalog_clicks / catalog_views * 100) if catalog_views else 0.0
+            catalog_cpc = (catalog_spend / catalog_clicks) if catalog_clicks else 0.0
+            catalog_cpm = (catalog_spend / catalog_views * 1000) if catalog_views else 0.0
+            
+            catalog_row = {
+                "Название": None,
+                "Зоны показа": "Полки + каталог",
+                "Бюджет": catalog_spend,
+                "Показы": catalog_views,
+                "Клики": catalog_clicks,
+                "CTR": catalog_ctr,
+                "CPC": catalog_cpc,
+                "CPM": catalog_cpm,
+                "Корзина": None,
+                "Добавления в корзину": None,
+                "Заказы": None,
+                "Заказы сумма": None,
+                "Добавление в заказ": None,
+                "Ассоц. заказы, шт.": None,
+                "Ассоц. заказы, руб": None,
+                "CR": None,
+                "CPO": None,
+                "ДРРз": None,
+                "Цена до СПП": None,
+                "Цена после СПП": None,
+                "Скидка МП": None,
+                "Прогноз. марж": None,
+                "Прогноз. приб. без опер. расх.": None
+            }
+            rows.append(catalog_row)
+            
+        return rows

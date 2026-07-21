@@ -41,13 +41,23 @@ async def send_daily_adv_report(bot: Bot):
     sales = await client.get_sales(days_ago=14)
     campaigns = await client.get_ad_campaigns()
     
-    active_cids = [c["advertId"] for c in campaigns if c.get("status") in [9, 11]]
+    active_campaigns = [c for c in campaigns if c.get("status") in [9, 11]]
+    active_cids = [c["advertId"] for c in active_campaigns]
     
     stats_cabinet = AdvAnalyzer.analyze_cabinet(orders, sales)
     
+    filename = "auto_report_campaigns.xlsx"
+    has_excel = False
+
     if active_cids:
         stats_ads = await client.get_campaign_full_stats(active_cids)
         funnel_text, recommendations = AdvAnalyzer.analyze_campaign_funnels(stats_ads)
+        try:
+            excel_data = AdvAnalyzer.prepare_campaign_excel_data(active_campaigns, stats_ads)
+            ExcelGenerator.generate_campaign_report(excel_data, filename)
+            has_excel = True
+        except Exception as e:
+            logger.error(f"Ошибка генерации Excel в шедулере рекламы: {e}")
     else:
         funnel_text = "Нет активных рекламных кампаний для анализа."
         recommendations = ["Запустите рекламу на WB для анализа."]
@@ -60,18 +70,24 @@ async def send_daily_adv_report(bot: Bot):
         f" ▫️ Выкупы: **{stats_cabinet['yesterday_sales_count']} шт.** ({format_currency(stats_cabinet['yesterday_sales_sum'])})\n"
         f" ▫️ Выкуп: **{format_percent(stats_cabinet['redemption_rate'])}** | Возвраты: **{format_percent(stats_cabinet['return_rate'])}**\n"
         f"{get_divider()}"
-        f"🎯 **Рекламные кампании:**\n{funnel_text}\n"
-        f"{get_divider()}"
-        f"💡 **Рекомендации:**\n" + "\n\n".join(recommendations)
+        f"💡 **Рекомендации по кампаниям:**\n" + "\n\n".join(recommendations)
     )
 
-    # Рассылаем всем админам
-    for u in users:
-        try:
-            await bot.send_message(chat_id=u.id, text=report_text)
-            logger.info(f"Отчет успешно отправлен пользователю {u.id}")
-        except Exception as e:
-            logger.error(f"Не удалось отправить отчет пользователю {u.id}: {e}")
+    try:
+        # Рассылаем всем админам
+        for u in users:
+            try:
+                if has_excel:
+                    excel_file = FSInputFile(filename, filename="Рекламные_кампании_Авто.xlsx")
+                    await bot.send_document(chat_id=u.id, document=excel_file, caption=report_text)
+                else:
+                    await bot.send_message(chat_id=u.id, text=report_text)
+                logger.info(f"Отчет успешно отправлен пользователю {u.id}")
+            except Exception as e:
+                logger.error(f"Не удалось отправить отчет пользователю {u.id}: {e}")
+    finally:
+        if has_excel and os.path.exists(filename):
+            os.remove(filename)
 
 
 async def send_weekly_supply_report(bot: Bot):

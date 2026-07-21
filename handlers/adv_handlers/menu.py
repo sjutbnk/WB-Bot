@@ -1,13 +1,15 @@
 import logging
+import os
 from datetime import datetime, time
 from aiogram import Router, F
 from aiogram.filters import CommandStart
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, FSInputFile
 from database.requests import get_wb_creds, get_bot_settings, update_bot_settings
 from keyboards.reply import get_adv_main_menu
 from keyboards.inline import get_settings_markup, get_hours_markup
 from services.wb_client import WBClient
 from services.adv_analyzer import AdvAnalyzer
+from services.excel_generator import ExcelGenerator
 from utils.filters import IsAdminFilter
 from utils.formatters import get_header, get_divider, format_currency, format_percent, format_number
 from schedulers.report_scheduler import reschedule_adv_report
@@ -66,39 +68,60 @@ async def handle_analytics(message: Message):
 
 @router.message(F.text == "🎯 Реклама")
 async def handle_advertising(message: Message):
-    """Отчет по воронке рекламных кампаний."""
+    """Отчет по воронке рекламных кампаний с генерацией Excel."""
     status_msg = await message.answer("⏳ **Загрузка рекламных кампаний...**\n[▒░░░░░░░░░] 15%")
     
     creds = await get_wb_creds()
     client = WBClient(adv_token=creds.adv_token)
     
-    await status_msg.edit_text("⏳ **Получение детальной статистики...**\n[████░░░░░░] 45%")
+    await status_msg.edit_text("⏳ **Получение детальной статистики...**\n[████░░░░░░] 40%")
     campaigns = await client.get_ad_campaigns()
     
     # Отфильтруем только активные кампании (статус 9 - идут показы, или возьмем все активные)
-    active_cids = [c["advertId"] for c in campaigns if c.get("status") in [9, 11]]
+    active_campaigns = [c for c in campaigns if c.get("status") in [9, 11]]
+    active_cids = [c["advertId"] for c in active_campaigns]
     
     if not active_cids:
         await status_msg.delete()
         await message.answer("❌ Нет активных или приостановленных рекламных кампаний для анализа.")
         return
         
-    await status_msg.edit_text("⏳ **Расчет CTR, CPC, CR и стоимости заказа...**\n[████████░░] 80%")
+    await status_msg.edit_text("⏳ **Расчет воронки конверсий и маржинальности...**\n[██████░░░░] 65%")
     stats = await client.get_campaign_full_stats(active_cids)
     
+    # Генерируем текстовые рекомендации
     funnel_text, recommendations = AdvAnalyzer.analyze_campaign_funnels(stats)
     
-    # Форматируем красивый вывод
+    await status_msg.edit_text("⏳ **Формирование детального Excel-отчета...**\n[████████░░] 85%")
+    # Формируем данные для Excel в стиле шаблона
+    excel_data = AdvAnalyzer.prepare_campaign_excel_data(active_campaigns, stats)
+    filename = "report_campaigns_maria_auto.xlsx"
+    ExcelGenerator.generate_campaign_report(excel_data, filename)
+    
+    await status_msg.edit_text("📤 **Отправка отчета...**\n[██████████] 100%")
+    
     report_text = (
         f"{get_header('Рекламные Кампании')}"
-        f"{funnel_text}"
-        f"{get_divider()}"
+        f"📊 **Аналитика кампаний вчера:**\n"
+        f" ▫️ Всего кампаний в отчете: **{len(active_cids)}**\n"
+        f" ▫️ Активные зоны: Поиск, Полки и каталог\n\n"
         f"📋 **Рекомендации по оптимизации:**\n\n" + 
         "\n\n".join(recommendations)
     )
     
-    await status_msg.delete()
-    await message.answer(report_text)
+    try:
+        excel_file = FSInputFile(filename, filename="Рекламные_кампании_Отчет.xlsx")
+        await message.answer_document(
+            document=excel_file,
+            caption=report_text
+        )
+    except Exception as e:
+        logger.error(f"Ошибка при отправке Excel-отчета РК: {e}")
+        await message.answer(report_text)
+    finally:
+        if os.path.exists(filename):
+            os.remove(filename)
+        await status_msg.delete()
 
 @router.message(F.text == "⚙️ Настройки")
 async def handle_settings(message: Message):
